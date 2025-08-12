@@ -17,20 +17,8 @@ st.set_page_config(
 # HÀM HỖ TRỢ (LOGIC XỬ LÝ)
 # ========================================================================================
 
-def resize_image(image, max_width=1500):
-    """Giảm kích thước ảnh nếu chiều rộng của nó lớn hơn max_width để tối ưu bộ nhớ."""
-    try:
-        if image.width > max_width:
-            ratio = max_width / image.width
-            new_height = int(image.height * ratio)
-            resized_image = image.resize((max_width, new_height), Image.LANCZOS)
-            return resized_image
-        return image
-    except Exception:
-        return image
-
-@st.cache_data
-def process_file(file_bytes, file_extension):
+@st.cache_data  # Sử dụng cache để không xử lý lại file đã xử lý
+def process_file(file_bytes, file_extension, selected_lang):
     """
     Hàm trung tâm xử lý file đầu vào (ảnh hoặc PDF) và trả về văn bản được trích xuất.
     """
@@ -39,18 +27,14 @@ def process_file(file_bytes, file_extension):
         if file_extension == 'pdf':
             images = convert_from_bytes(file_bytes)
             all_text = []
-            # Thêm st.progress để người dùng thấy tiến trình xử lý PDF
-            progress_bar = st.progress(0)
+            progress_bar = st.progress(0, text="Đang xử lý file PDF...")
             for i, img in enumerate(images):
-                optimized_img = resize_image(img)
-                all_text.append(pytesseract.image_to_string(optimized_img, lang='vie'))
-                # Cập nhật thanh tiến trình
+                all_text.append(pytesseract.image_to_string(img, lang=selected_lang))
                 progress_bar.progress((i + 1) / len(images))
             extracted_text = "\n\n--- Hết trang ---\n\n".join(all_text)
         elif file_extension in ['png', 'jpg', 'jpeg']:
             image = Image.open(io.BytesIO(file_bytes))
-            optimized_img = resize_image(image)
-            extracted_text = pytesseract.image_to_string(optimized_img, lang='vie')
+            extracted_text = pytesseract.image_to_string(image, lang=selected_lang)
         return extracted_text, None
     except Exception as e:
         return None, f"Đã xảy ra lỗi trong quá trình xử lý: {e}"
@@ -60,25 +44,40 @@ def process_file(file_bytes, file_extension):
 # ========================================================================================
 
 st.title("📄 Trợ lý OCR Thông minh")
-st.write("Trích xuất văn bản Tiếng Việt từ file ảnh hoặc PDF. Hỗ trợ tải lên nhiều file cùng lúc.")
+st.write("Trích xuất văn bản từ file ảnh hoặc PDF. Hỗ trợ Tiếng Việt và Tiếng Anh.")
 
-# Cột cho phần tải lên và hướng dẫn
+# Cột cho phần tải lên và các tùy chọn
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    # THAY ĐỔI QUAN TRỌNG: Thêm accept_multiple_files=True
+    # THÊM LỰA CHỌN NGÔN NGỮ
+    lang_option = st.radio(
+        "Chọn ngôn ngữ trong tài liệu:",
+        ("Chỉ Tiếng Việt", "Chỉ Tiếng Anh", "Tiếng Việt + Tiếng Anh"),
+        horizontal=True,
+    )
+
+    # Chuyển đổi lựa chọn của người dùng thành mã ngôn ngữ cho Tesseract
+    lang_code_map = {
+        "Chỉ Tiếng Việt": "vie",
+        "Chỉ Tiếng Anh": "eng",
+        "Tiếng Việt + Tiếng Anh": "vie+eng"
+    }
+    selected_lang_code = lang_code_map[lang_option]
+    
+    # Tiện ích tải file
     uploaded_files = st.file_uploader(
-        "Tải lên MỘT hoặc NHIỀU file ảnh (JPG, PNG) hoặc PDF...",
+        "Tải lên MỘT hoặc NHIỀU file...",
         type=['pdf', 'png', 'jpg', 'jpeg'],
-        accept_multiple_files=True  # <-- Cho phép tải nhiều file
+        accept_multiple_files=True
     )
 
 with col2:
     with st.expander("💡 Mẹo sử dụng", expanded=True):
         st.info("""
-        - Bạn có thể kéo thả nhiều file vào đây cùng một lúc.
-        - Kết quả của mỗi file sẽ được hiển thị trong một khung riêng biệt bên dưới.
-        - Để có kết quả tốt nhất, hãy sử dụng ảnh rõ nét và chữ không bị mờ.
+        - **Chọn đúng ngôn ngữ** để có kết quả chính xác nhất.
+        - Chọn **"Tiếng Việt + Tiếng Anh"** nếu tài liệu của bạn chứa cả hai loại ngôn ngữ.
+        - Để có kết quả tốt nhất, hãy sử dụng ảnh rõ nét, chữ không bị mờ.
         """)
 
 # Xử lý nếu người dùng đã tải file lên
@@ -86,18 +85,15 @@ if uploaded_files:
     st.markdown("---")
     st.header("Kết quả trích xuất")
 
-    # Lặp qua từng file đã tải lên
     for uploaded_file in uploaded_files:
-        # Sử dụng st.expander để tạo một khu vực riêng cho mỗi file
         with st.expander(f"Kết quả cho file: {uploaded_file.name}", expanded=True):
-            with st.spinner(f"Đang xử lý file '{uploaded_file.name}'..."):
+            with st.spinner(f"Đang xử lý '{uploaded_file.name}' với chế độ '{lang_option}'..."):
                 file_bytes = uploaded_file.getvalue()
                 file_extension = uploaded_file.name.split('.')[-1].lower()
                 
-                # Gọi hàm xử lý trung tâm
-                text, error = process_file(file_bytes, file_extension)
+                # Gọi hàm xử lý và truyền vào ngôn ngữ đã chọn
+                text, error = process_file(file_bytes, file_extension, selected_lang_code)
 
-            # Hiển thị kết quả hoặc lỗi
             if error:
                 st.error(error)
             else:
@@ -109,4 +105,3 @@ if uploaded_files:
                     mime="text/plain",
                     key=f"download_{uploaded_file.name}"
                 )
-
