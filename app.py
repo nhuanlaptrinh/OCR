@@ -18,10 +18,14 @@ st.set_page_config(
 # ========================================================================================
 
 @st.cache_data  # Sử dụng cache để không xử lý lại file đã xử lý
-def process_file(file_bytes, file_extension, selected_lang):
+def process_file(file_bytes, file_extension):
     """
     Hàm trung tâm xử lý file đầu vào (ảnh hoặc PDF) và trả về văn bản được trích xuất.
+    Mặc định sử dụng chế độ song ngữ Việt + Anh.
     """
+    # Cố định ngôn ngữ xử lý là Việt + Anh
+    lang_code = "vie+eng"
+    
     extracted_text = ""
     try:
         if file_extension == 'pdf':
@@ -29,12 +33,12 @@ def process_file(file_bytes, file_extension, selected_lang):
             all_text = []
             progress_bar = st.progress(0, text="Đang xử lý file PDF...")
             for i, img in enumerate(images):
-                all_text.append(pytesseract.image_to_string(img, lang=selected_lang))
+                all_text.append(pytesseract.image_to_string(img, lang=lang_code))
                 progress_bar.progress((i + 1) / len(images))
             extracted_text = "\n\n--- Hết trang ---\n\n".join(all_text)
         elif file_extension in ['png', 'jpg', 'jpeg']:
             image = Image.open(io.BytesIO(file_bytes))
-            extracted_text = pytesseract.image_to_string(image, lang=selected_lang)
+            extracted_text = pytesseract.image_to_string(image, lang=lang_code)
         return extracted_text, None
     except Exception as e:
         return None, f"Đã xảy ra lỗi trong quá trình xử lý: {e}"
@@ -44,28 +48,13 @@ def process_file(file_bytes, file_extension, selected_lang):
 # ========================================================================================
 
 st.title("📄 Trợ lý OCR Thông minh")
-st.write("Trích xuất văn bản từ file ảnh hoặc PDF. Hỗ trợ Tiếng Việt và Tiếng Anh.")
+st.write("Trích xuất văn bản từ file ảnh hoặc PDF. Mặc định xử lý song ngữ Tiếng Việt và Tiếng Anh.")
 
-# Cột cho phần tải lên và các tùy chọn
+# Cột cho phần tải lên và hướng dẫn
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    # THÊM LỰA CHỌN NGÔN NGỮ
-    lang_option = st.radio(
-        "Chọn ngôn ngữ trong tài liệu:",
-        ("Chỉ Tiếng Việt", "Chỉ Tiếng Anh", "Tiếng Việt + Tiếng Anh"),
-        horizontal=True,
-    )
-
-    # Chuyển đổi lựa chọn của người dùng thành mã ngôn ngữ cho Tesseract
-    lang_code_map = {
-        "Chỉ Tiếng Việt": "vie",
-        "Chỉ Tiếng Anh": "eng",
-        "Tiếng Việt + Tiếng Anh": "vie+eng"
-    }
-    selected_lang_code = lang_code_map[lang_option]
-    
-    # Tiện ích tải file
+    # Tiện ích tải file đã được đơn giản hóa
     uploaded_files = st.file_uploader(
         "Tải lên MỘT hoặc NHIỀU file...",
         type=['pdf', 'png', 'jpg', 'jpeg'],
@@ -75,8 +64,8 @@ with col1:
 with col2:
     with st.expander("💡 Mẹo sử dụng", expanded=True):
         st.info("""
-        - **Chọn đúng ngôn ngữ** để có kết quả chính xác nhất.
-        - Chọn **"Tiếng Việt + Tiếng Anh"** nếu tài liệu của bạn chứa cả hai loại ngôn ngữ.
+        - Ứng dụng được tối ưu để nhận dạng tài liệu có cả Tiếng Việt và Tiếng Anh.
+        - Bạn có thể kéo thả nhiều file vào đây cùng một lúc.
         - Để có kết quả tốt nhất, hãy sử dụng ảnh rõ nét, chữ không bị mờ.
         """)
 
@@ -87,12 +76,12 @@ if uploaded_files:
 
     for uploaded_file in uploaded_files:
         with st.expander(f"Kết quả cho file: {uploaded_file.name}", expanded=True):
-            with st.spinner(f"Đang xử lý '{uploaded_file.name}' với chế độ '{lang_option}'..."):
+            with st.spinner(f"Đang xử lý '{uploaded_file.name}'..."):
                 file_bytes = uploaded_file.getvalue()
                 file_extension = uploaded_file.name.split('.')[-1].lower()
                 
-                # Gọi hàm xử lý và truyền vào ngôn ngữ đã chọn
-                text, error = process_file(file_bytes, file_extension, selected_lang_code)
+                # Gọi hàm xử lý đã được đơn giản hóa
+                text, error = process_file(file_bytes, file_extension)
 
             if error:
                 st.error(error)
