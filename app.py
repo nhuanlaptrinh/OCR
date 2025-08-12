@@ -130,4 +130,5 @@ if st.session_state.extracted_text:
             st.session_state.error_message = None
             st.session_state.last_uploaded_filename = None
             # Dùng st.experimental_rerun() để tải lại trang ngay lập tức
-            st.experimental_rerun()
+            st.rerun()
+
