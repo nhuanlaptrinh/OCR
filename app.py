@@ -26,8 +26,7 @@ def resize_image(image, max_width=1500):
             resized_image = image.resize((max_width, new_height), Image.LANCZOS)
             return resized_image
         return image
-    except Exception as e:
-        # Bỏ qua lỗi nếu không thể resize
+    except Exception:
         return image
 
 def process_file(file_bytes, file_extension):
@@ -39,96 +38,73 @@ def process_file(file_bytes, file_extension):
         if file_extension == 'pdf':
             images = convert_from_bytes(file_bytes)
             all_text = []
-            for img in images:
+            # Thêm st.progress để người dùng thấy tiến trình xử lý PDF
+            progress_bar = st.progress(0)
+            for i, img in enumerate(images):
                 optimized_img = resize_image(img)
                 all_text.append(pytesseract.image_to_string(optimized_img, lang='vie'))
+                # Cập nhật thanh tiến trình
+                progress_bar.progress((i + 1) / len(images))
             extracted_text = "\n\n--- Hết trang ---\n\n".join(all_text)
         elif file_extension in ['png', 'jpg', 'jpeg']:
             image = Image.open(io.BytesIO(file_bytes))
             optimized_img = resize_image(image)
             extracted_text = pytesseract.image_to_string(optimized_img, lang='vie')
-        return extracted_text, None  # Trả về text và không có lỗi
+        return extracted_text, None
     except Exception as e:
-        return None, f"Đã xảy ra lỗi trong quá trình xử lý: {e}" # Trả về không có text và thông báo lỗi
+        return None, f"Đã xảy ra lỗi trong quá trình xử lý: {e}"
 
 # ========================================================================================
 # GIAO DIỆN CHÍNH CỦA ỨNG DỤNG
 # ========================================================================================
 
 st.title("📄 Trợ lý OCR Thông minh")
-st.write("Trích xuất văn bản Tiếng Việt từ file ảnh hoặc PDF một cách nhanh chóng và hiệu quả.")
-
-# Khởi tạo session_state nếu chưa có
-if 'extracted_text' not in st.session_state:
-    st.session_state.extracted_text = None
-if 'error_message' not in st.session_state:
-    st.session_state.error_message = None
-if 'last_uploaded_filename' not in st.session_state:
-    st.session_state.last_uploaded_filename = None
+st.write("Trích xuất văn bản Tiếng Việt từ file ảnh hoặc PDF. Hỗ trợ tải lên nhiều file cùng lúc.")
 
 # Cột cho phần tải lên và hướng dẫn
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    uploaded_file = st.file_uploader(
-        "Tải lên file ảnh (JPG, PNG) hoặc PDF của bạn...",
-        type=['pdf', 'png', 'jpg', 'jpeg']
+    # THAY ĐỔI QUAN TRỌNG: Thêm accept_multiple_files=True
+    uploaded_files = st.file_uploader(
+        "Tải lên MỘT hoặc NHIỀU file ảnh (JPG, PNG) hoặc PDF...",
+        type=['pdf', 'png', 'jpg', 'jpeg'],
+        accept_multiple_files=True  # <-- Cho phép tải nhiều file
     )
 
 with col2:
-    with st.expander("💡 Mẹo sử dụng", expanded=False):
+    with st.expander("💡 Mẹo sử dụng", expanded=True):
         st.info("""
-        - Để có kết quả tốt nhất, hãy sử dụng ảnh rõ nét, chữ không bị mờ, nghiêng.
-        - Giới hạn tải lên là 200MB, nhưng file nhỏ hơn sẽ được xử lý nhanh hơn.
-        - Đối với PDF nhiều trang, ứng dụng sẽ nối kết quả của tất cả các trang lại.
+        - Bạn có thể kéo thả nhiều file vào đây cùng một lúc.
+        - Kết quả của mỗi file sẽ được hiển thị trong một khung riêng biệt bên dưới.
+        - Để có kết quả tốt nhất, hãy sử dụng ảnh rõ nét và chữ không bị mờ.
         """)
 
-# Xử lý file nếu có file mới được tải lên
-if uploaded_file is not None:
-    # Chỉ xử lý nếu file này chưa được xử lý trước đó
-    if uploaded_file.name != st.session_state.last_uploaded_filename:
-        with st.spinner(f"Đang xử lý file '{uploaded_file.name}', vui lòng chờ..."):
-            file_bytes = uploaded_file.getvalue()
-            file_extension = uploaded_file.name.split('.')[-1].lower()
-            
-            # Gọi hàm xử lý trung tâm
-            text, error = process_file(file_bytes, file_extension)
-            
-            # Lưu kết quả vào session_state
-            st.session_state.extracted_text = text
-            st.session_state.error_message = error
-            st.session_state.last_uploaded_filename = uploaded_file.name
-        
-        # Hiển thị thông báo thành công hoặc thất bại
-        if st.session_state.error_message:
-            st.error(st.session_state.error_message)
-        else:
-            st.success(f"Đã xử lý thành công file '{uploaded_file.name}'!")
-
-
-# Hiển thị kết quả nếu có
-if st.session_state.extracted_text:
+# Xử lý nếu người dùng đã tải file lên
+if uploaded_files:
     st.markdown("---")
     st.header("Kết quả trích xuất")
-    st.text_area("Văn bản:", st.session_state.extracted_text, height=400, key="result_text")
 
-    # Chia cột cho các nút hành động
-    btn_col1, btn_col2, _ = st.columns([1, 1, 3])
+    # Lặp qua từng file đã tải lên
+    for uploaded_file in uploaded_files:
+        # Sử dụng st.expander để tạo một khu vực riêng cho mỗi file
+        with st.expander(f"Kết quả cho file: {uploaded_file.name}", expanded=True):
+            with st.spinner(f"Đang xử lý file '{uploaded_file.name}'..."):
+                file_bytes = uploaded_file.getvalue()
+                file_extension = uploaded_file.name.split('.')[-1].lower()
+                
+                # Gọi hàm xử lý trung tâm
+                text, error = process_file(file_bytes, file_extension)
 
-    with btn_col1:
-        st.download_button(
-            label="📥 Tải kết quả xuống",
-            data=st.session_state.extracted_text.encode('utf-8'),
-            file_name=f"ket_qua_{st.session_state.last_uploaded_filename}.txt",
-            mime="text/plain"
-        )
-    
-    with btn_col2:
-        # Nút xóa kết quả
-        if st.button("🔄 Xóa & làm lại"):
-            st.session_state.extracted_text = None
-            st.session_state.error_message = None
-            st.session_state.last_uploaded_filename = None
-            # Dùng st.experimental_rerun() để tải lại trang ngay lập tức
-            st.rerun()
-
+            # Hiển thị kết quả hoặc lỗi
+            if error:
+                st.error(error)
+            else:
+                st.text_area("Văn bản:", text, height=300, key=f"text_{uploaded_file.name}")
+                st.download_button(
+                    label="📥 Tải kết quả này",
+                    data=text.encode('utf-8'),
+                    file_name=f"ket_qua_{uploaded_file.name}.txt",
+                    mime="text/plain",
+                    key=f"download_{uploaded_file.name}"
+                )
