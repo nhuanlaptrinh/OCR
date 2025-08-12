@@ -29,6 +29,7 @@ def resize_image(image, max_width=1500):
     except Exception:
         return image
 
+@st.cache_data
 def process_file(file_bytes, file_extension):
     """
     Hàm trung tâm xử lý file đầu vào (ảnh hoặc PDF) và trả về văn bản được trích xuất.
@@ -108,3 +109,4 @@ if uploaded_files:
                     mime="text/plain",
                     key=f"download_{uploaded_file.name}"
                 )
+
