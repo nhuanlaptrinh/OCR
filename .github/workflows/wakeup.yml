@@ -2,12 +2,12 @@ name: Wake Up Streamlit App
 
 on:
   schedule:
-    # Chạy sau mỗi 5 phút
-    - cron: '*/5 * * * *'
+    # Chạy sau mỗi 15 phút
+    - cron: '*/15 * * * *'
 
 jobs:
   wake-up:
     runs-on: ubuntu-latest
     steps:
       - name: Send request to app
-        run: curl -s https://vqgfnjwpybwjtqrh6senci.streamlit.app/ > /dev/null
+        run: curl -L --fail "https://vqgfnjwpybwjtqrh6senci.streamlit.app/" || exit 0
