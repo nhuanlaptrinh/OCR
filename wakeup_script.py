@@ -7,10 +7,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
-# --- URL ứng dụng của bạn ---
-# URL cho dự án mới
+# --- CÁC THAM SỐ CÓ THỂ ĐIỀU CHỈNH ---
 APP_URL = "https://vqgfnjwpybwjtqrh6senci.streamlit.app/"
-# -----------------------------
+TOTAL_RUN_TIME_MINUTES = 10  # Tổng thời gian kịch bản sẽ chạy (phút)
+REFRESH_INTERVAL_MINUTES = 3   # Khoảng thời gian giữa mỗi lần làm mới (phút)
+# ------------------------------------
 
 print("--- Setting up headless Chrome browser ---")
 options = webdriver.ChromeOptions()
@@ -26,35 +27,37 @@ try:
     print(f"--- Navigating to {APP_URL} ---")
     driver.get(APP_URL)
 
-    # Logic kiểm tra ứng dụng có đang "ngủ" hay không
+    # Đánh thức ứng dụng lần đầu nếu cần
     try:
-        print("--- Checking if app is asleep (short wait)... ---")
+        print("--- Checking if app is asleep (initial check)... ---")
         short_wait = WebDriverWait(driver, 5)
         wakeup_button = short_wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Yes, get this app back up!')]"))
         )
-        
         print("--- App is asleep. Clicking wakeup button. ---")
         wakeup_button.click()
-
+        # Chờ ứng dụng tải xong sau khi nhấn nút
+        long_wait = WebDriverWait(driver, 120)
+        long_wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
     except TimeoutException:
-        print("--- Wakeup button not found, assuming app is already awake or waking up. ---")
-        pass 
+        print("--- Wakeup button not found, assuming app is already awake. ---")
 
-    # Chờ và chuyển vào iframe chứa ứng dụng Streamlit
-    print("--- Switching to the Streamlit iframe... ---")
-    wait = WebDriverWait(driver, 60)
-    wait.until(EC.frame_to_be_available_and_switch_to_it((By.TAG_NAME, "iframe")))
-    print("--- Successfully switched to iframe. ---")
+    # Bắt đầu vòng lặp giữ cho ứng dụng thức
+    start_time = time.time()
+    total_run_seconds = TOTAL_RUN_TIME_MINUTES * 60
+    refresh_interval_seconds = REFRESH_INTERVAL_MINUTES * 60
+    next_refresh_time = start_time + refresh_interval_seconds
 
-    # Bước xác minh cuối cùng (bên trong iframe)
-    print("--- Verifying app has fully loaded (long wait)... ---")
-    long_wait = WebDriverWait(driver, 120)
-    long_wait.until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "div[data-testid='stAppViewContainer']"))
-    )
-    
-    print("--- Verification successful! App is ready. ---")
+    print(f"--- Starting keep-awake loop for {TOTAL_RUN_TIME_MINUTES} minutes. Refreshing every {REFRESH_INTERVAL_MINUTES} minutes. ---")
+
+    while time.time() - start_time < total_run_seconds:
+        if time.time() > next_refresh_time:
+            print(f"--- Refreshing page at {time.strftime('%H:%M:%S')} ---")
+            driver.refresh()
+            next_refresh_time += refresh_interval_seconds
+        time.sleep(15) # Ngủ 15 giây để giảm tải CPU
+
+    print(f"--- Loop finished after {TOTAL_RUN_TIME_MINUTES} minutes. ---")
 
 except Exception as e:
     print("--- An unexpected error occurred. ---")
