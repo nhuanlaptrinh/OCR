@@ -8,7 +8,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 # --- URL ứng dụng của bạn ---
-APP_URL = "https://vqgfnjwpybwjtqrh6senci.streamlit.app/" # <<< THAY ĐỔI URL MỚI TẠI ĐÂY
+# URL cho dự án mới
+APP_URL = "https://vqgfnjwpybwjtqrh6senci.streamlit.app/"
 # -----------------------------
 
 print("--- Setting up headless Chrome browser ---")
@@ -25,6 +26,7 @@ try:
     print(f"--- Navigating to {APP_URL} ---")
     driver.get(APP_URL)
 
+    # Logic kiểm tra ứng dụng có đang "ngủ" hay không
     try:
         print("--- Checking if app is asleep (short wait)... ---")
         short_wait = WebDriverWait(driver, 5)
@@ -39,6 +41,13 @@ try:
         print("--- Wakeup button not found, assuming app is already awake or waking up. ---")
         pass 
 
+    # Chờ và chuyển vào iframe chứa ứng dụng Streamlit
+    print("--- Switching to the Streamlit iframe... ---")
+    wait = WebDriverWait(driver, 60)
+    wait.until(EC.frame_to_be_available_and_switch_to_it((By.TAG_NAME, "iframe")))
+    print("--- Successfully switched to iframe. ---")
+
+    # Bước xác minh cuối cùng (bên trong iframe)
     print("--- Verifying app has fully loaded (long wait)... ---")
     long_wait = WebDriverWait(driver, 120)
     long_wait.until(
